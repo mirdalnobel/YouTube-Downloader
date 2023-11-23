@@ -10,55 +10,45 @@ from PIL import Image
 from io import BytesIO
 
 def get_video(url):
+    global video_found, video
     try:
         video = YouTube(url)
-        return video
+        video_found = True
     except pytube.exceptions.RegexMatchError:
         st.error('Invalid URL.')
-        return None
+        video_found = False
     except pytube.exceptions.VideoUnavailable:
-        st.error('This video is unavailable.')
-        return None
-
-@st.cache
-def get_stats(video):
-    header = f'**{video.title}** *By: {video.author}*'
-    thumbnail = load_thumbnail(video.thumbnail_url)
-    info = f'Length: **{datetime.timedelta(seconds=video.length)}** \nViews: **{video.views:,}**'
-    return header, thumbnail, info
+        st.error('This video is unavailable')
+        video_found = False
+    return video
 
 def load_thumbnail(image_url):
     response = requests.get(image_url)
     img = Image.open(BytesIO(response.content))
     return img
 
-def download_video(video, download_type):
-    if download_type == 'Video and Audio (.mkv)':
-        download_video_and_audio(video)
-    elif download_type == 'Audio Only (.mp3)':
-        download_audio(video)
-    elif download_type == 'Video Only (.mp4)':
-        download_video_only(video)
-
-def download_video_and_audio(video):
-    # Download and merge video and audio
-    # ...
+@st.cache
+def get_stats(video):
+    header = (f'**{video.title}**' 
+            + f' *By: {video.author}*')
+    thumbnail = load_thumbnail(video.thumbnail_url)
+    info = (f'Length: **{datetime.timedelta(seconds=video.length)}** \n'
+          + f'Views: **{video.views:,}**')
+    return header, thumbnail, info
 
 def download_audio(video):
-    # Download audio only
     stream = video.streams.get_audio_only()
     filesize = round(stream.filesize / 1000000, 2)
     if st.button(f'Download Audio (~{filesize} MB)'):
-        with st.spinner(f'Downloading {video.title} audio...'):
+        with st.spinner(f'Downloading {video.title}... Please wait to open any files until the download has finished'):
             stream.download(filename='audio')
-            convert_mp3 = f'ffmpeg -i audio.mp4 Downloads/{re.sub("[^0-9a-zA-Z]+", "-", video.title)}.mp3'
-            subprocess.run(convert_mp3, shell=True)
+            convert_to_mp3(video.title)
             os.remove('Downloads/audio.mp4')
-        st.success(f'Finished Downloading {video.title} audio!')
+        st.success(f'Finished Downloading {video.title}!')
 
-def download_video_only(video):
-    # Download video only
-    # ...
+def convert_to_mp3(title):
+    convert_mp3 = f'ffmpeg -i Downloads/audio.mp4 Downloads/{re.sub("[^0-9a-zA-Z]+", "-", title)}.mp3'
+    subprocess.run(convert_mp3, shell=True)
 
 st.title('YouTube Downloader')
 
@@ -66,7 +56,7 @@ url = st.text_input('Enter the URL of the YouTube video')
 
 if url:
     video = get_video(url)
-    if video:
+    if video_found:
         header, thumbnail, info = get_stats(video)
         st.header(header)
         st.image(thumbnail, width=750)
@@ -74,13 +64,16 @@ if url:
 
         download_type = st.radio(
             'Select the type of download you would like', [
-                'Video and Audio (.mkv)',
-                'Audio Only (.mp3)',
-                'Video Only (.mp4)'
-            ]
+                'Video and Audio (.mkv)', 
+                'Audio Only (.mp3)', 
+                'Video Only (.mp4)']
         )
 
-        if st.button(f'Download {download_type}'):
-            download_video(video, download_type)
-            st.success(f'Finished Downloading {video.title}!')
+        if download_type == 'Video and Audio (.mkv)':
+            # Your existing code for downloading video and audio
 
+        elif download_type == 'Audio Only (.mp3)':
+            download_audio(video)
+
+        elif download_type == 'Video Only (.mp4)':
+            # Your existing code for downloading video only
